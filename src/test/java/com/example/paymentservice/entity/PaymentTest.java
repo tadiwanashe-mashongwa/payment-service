@@ -41,4 +41,12 @@ class PaymentTest {
         assertThrows(IllegalArgumentException.class,
                 () -> new Payment(UUID.randomUUID(), UUID.randomUUID(), BigDecimal.ZERO));
     }
+
+    @Test
+    void shouldRejectTransitionFromFailedPayment() {
+        Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("19.99"));
+        payment.transitionTo(PaymentStatus.FAILED);
+
+        assertThrows(IllegalStateException.class, () -> payment.transitionTo(PaymentStatus.SUCCESS));
+    }
 }
