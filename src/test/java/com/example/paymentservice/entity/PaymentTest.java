@@ -35,4 +35,10 @@ class PaymentTest {
 
         assertThrows(IllegalStateException.class, () -> payment.transitionTo(PaymentStatus.REFUNDED));
     }
+
+    @Test
+    void shouldRejectPaymentWithNonPositiveAmount() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new Payment(UUID.randomUUID(), UUID.randomUUID(), BigDecimal.ZERO));
+    }
 }
