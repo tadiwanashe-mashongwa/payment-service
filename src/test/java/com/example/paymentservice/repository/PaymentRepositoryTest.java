@@ -18,6 +18,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 @Testcontainers
@@ -76,5 +77,15 @@ class PaymentRepositoryTest {
         );
 
         assertThat(paymentRepository.findByOrderId(orderId)).contains(persisted);
+    }
+
+    @Test
+    void shouldRejectDuplicatePaymentsForTheSameOrder() {
+        UUID orderId = UUID.randomUUID();
+        paymentRepository.saveAndFlush(new Payment(orderId, UUID.randomUUID(), new BigDecimal("42.50")));
+
+        assertThatThrownBy(() -> paymentRepository.saveAndFlush(
+                new Payment(orderId, UUID.randomUUID(), new BigDecimal("42.50"))
+        )).isInstanceOf(Exception.class);
     }
 }
