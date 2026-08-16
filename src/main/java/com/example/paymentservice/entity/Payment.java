@@ -30,4 +30,6 @@ public class Payment {
     public PaymentStatus getStatus() { return status; }
     public UUID getId() { return id; }
     public UUID getOrderId() { return orderId; }
+    public UUID getCustomerId() { return customerId; }
+    public BigDecimal getAmount() { return amount; }
 }
