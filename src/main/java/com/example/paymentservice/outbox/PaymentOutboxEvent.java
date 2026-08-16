@@ -49,4 +49,11 @@ public class PaymentOutboxEvent {
 
     public String getPayload() { return payload; }
     public String getTopic() { return topic; }
+    public UUID getAggregateId() { return aggregateId; }
+
+    public boolean isPublished() { return published; }
+
+    public void markPublished() {
+        this.published = true;
+    }
 }
