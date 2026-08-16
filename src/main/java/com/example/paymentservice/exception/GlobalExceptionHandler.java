@@ -12,4 +12,9 @@ public class GlobalExceptionHandler {
     ProblemDetail handlePaymentNotFound(PaymentNotFoundException exception) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
     }
+
+    @ExceptionHandler(InvalidPaymentStatusTransitionException.class)
+    ProblemDetail handleInvalidPaymentStatusTransition(InvalidPaymentStatusTransitionException exception) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
 }

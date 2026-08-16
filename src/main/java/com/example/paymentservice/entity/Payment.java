@@ -1,4 +1,5 @@
 package com.example.paymentservice.entity;
+import com.example.paymentservice.exception.InvalidPaymentStatusTransitionException;
 import jakarta.persistence.*;
 import org.hibernate.annotations.UuidGenerator;
 import java.math.BigDecimal;
@@ -23,7 +24,7 @@ public class Payment {
     }
     public void transitionTo(PaymentStatus target) {
         if (!((status == PaymentStatus.PENDING && (target == PaymentStatus.SUCCESS || target == PaymentStatus.FAILED)) || (status == PaymentStatus.SUCCESS && target == PaymentStatus.REFUNDED))) {
-            throw new IllegalStateException("Invalid payment status transition");
+            throw new InvalidPaymentStatusTransitionException();
         }
         status = target;
     }

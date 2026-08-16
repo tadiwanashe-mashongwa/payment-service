@@ -2,6 +2,7 @@ package com.example.paymentservice.controller;
 
 import com.example.paymentservice.entity.Payment;
 import com.example.paymentservice.exception.PaymentNotFoundException;
+import com.example.paymentservice.exception.InvalidPaymentStatusTransitionException;
 import com.example.paymentservice.dto.PaymentResponse;
 import com.example.paymentservice.service.PaymentService;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -140,5 +142,43 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(1));
 
         verify(paymentService).getPaymentsByCustomer(eq(customerId), any());
+    }
+
+    @Test
+    void shouldUpdatePaymentStatus() throws Exception {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = mock(Payment.class);
+        when(payment.getId()).thenReturn(paymentId);
+        when(payment.getStatus()).thenReturn(com.example.paymentservice.entity.PaymentStatus.SUCCESS);
+        when(paymentService.transitionPaymentStatus(
+                paymentId,
+                com.example.paymentservice.entity.PaymentStatus.SUCCESS
+        )).thenReturn(payment);
+
+        mockMvc.perform(patch("/api/payments/{paymentId}/status", paymentId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"SUCCESS\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(paymentId.toString()))
+                .andExpect(jsonPath("$.status").value("SUCCESS"));
+
+        verify(paymentService).transitionPaymentStatus(
+                paymentId,
+                com.example.paymentservice.entity.PaymentStatus.SUCCESS
+        );
+    }
+
+    @Test
+    void shouldRejectInvalidPaymentStatusTransition() throws Exception {
+        UUID paymentId = UUID.randomUUID();
+        when(paymentService.transitionPaymentStatus(
+                paymentId,
+                com.example.paymentservice.entity.PaymentStatus.REFUNDED
+        )).thenThrow(new InvalidPaymentStatusTransitionException());
+
+        mockMvc.perform(patch("/api/payments/{paymentId}/status", paymentId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"REFUNDED\"}"))
+                .andExpect(status().isBadRequest());
     }
 }

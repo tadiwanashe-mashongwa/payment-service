@@ -1,10 +1,12 @@
 package com.example.paymentservice.service;
 
 import com.example.paymentservice.entity.Payment;
+import com.example.paymentservice.entity.PaymentStatus;
 import com.example.paymentservice.dto.PaymentResponse;
 import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -32,5 +34,12 @@ public class PaymentService {
     public Page<PaymentResponse> getPaymentsByCustomer(UUID customerId, Pageable pageable) {
         return paymentRepository.findByCustomerId(customerId, pageable)
                 .map(PaymentResponse::from);
+    }
+
+    @Transactional
+    public Payment transitionPaymentStatus(UUID paymentId, PaymentStatus targetStatus) {
+        Payment payment = getPayment(paymentId);
+        payment.transitionTo(targetStatus);
+        return paymentRepository.save(payment);
     }
 }

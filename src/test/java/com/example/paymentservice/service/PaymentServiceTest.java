@@ -3,6 +3,7 @@ package com.example.paymentservice.service;
 import com.example.paymentservice.entity.Payment;
 import com.example.paymentservice.entity.PaymentStatus;
 import com.example.paymentservice.exception.PaymentNotFoundException;
+import com.example.paymentservice.exception.InvalidPaymentStatusTransitionException;
 import com.example.paymentservice.repository.PaymentRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -86,5 +88,32 @@ class PaymentServiceTest {
                 .singleElement()
                 .satisfies(response -> assertThat(response.customerId()).isEqualTo(customerId));
         verify(paymentRepository).findByCustomerId(customerId, pageable);
+    }
+
+    @Test
+    void shouldTransitionPaymentStatusAndPersistIt() {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("19.99"));
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(payment)).thenReturn(payment);
+        PaymentService paymentService = new PaymentService(paymentRepository);
+
+        Payment result = paymentService.transitionPaymentStatus(paymentId, PaymentStatus.SUCCESS);
+
+        assertThat(result.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        verify(paymentRepository).save(payment);
+    }
+
+    @Test
+    void shouldNotPersistInvalidPaymentStatusTransition() {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("19.99"));
+        payment.transitionTo(PaymentStatus.FAILED);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(payment));
+        PaymentService paymentService = new PaymentService(paymentRepository);
+
+        assertThatThrownBy(() -> paymentService.transitionPaymentStatus(paymentId, PaymentStatus.SUCCESS))
+                .isInstanceOf(InvalidPaymentStatusTransitionException.class);
+        verify(paymentRepository, never()).save(payment);
     }
 }
