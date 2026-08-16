@@ -5,6 +5,10 @@ import com.example.paymentservice.entity.PaymentStatus;
 import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.exception.InvalidPaymentStatusTransitionException;
 import com.example.paymentservice.repository.PaymentRepository;
+import com.example.paymentservice.outbox.PaymentOutboxEvent;
+import com.example.paymentservice.outbox.PaymentOutboxEventRepository;
+import com.example.paymentservice.event.PaymentStatusChangedEvent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -34,12 +38,15 @@ class PaymentServiceTest {
     @Mock
     private PaymentRepository paymentRepository;
 
+    @Mock
+    private PaymentOutboxEventRepository paymentOutboxEventRepository;
+
     @Test
     void shouldCreatePendingPayment() {
         UUID orderId = UUID.randomUUID();
         UUID customerId = UUID.randomUUID();
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        PaymentService paymentService = new PaymentService(paymentRepository);
+        PaymentService paymentService = paymentService();
 
         Payment result = paymentService.initiatePayment(orderId, customerId, new BigDecimal("19.99"));
 
@@ -54,7 +61,7 @@ class PaymentServiceTest {
         UUID paymentId = UUID.randomUUID();
         Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("19.99"));
         when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(payment));
-        PaymentService paymentService = new PaymentService(paymentRepository);
+        PaymentService paymentService = paymentService();
 
         Payment result = paymentService.getPayment(paymentId);
 
@@ -66,7 +73,7 @@ class PaymentServiceTest {
     void shouldThrowWhenPaymentDoesNotExist() {
         UUID paymentId = UUID.randomUUID();
         when(paymentRepository.findById(paymentId)).thenReturn(Optional.empty());
-        PaymentService paymentService = new PaymentService(paymentRepository);
+        PaymentService paymentService = paymentService();
 
         assertThatThrownBy(() -> paymentService.getPayment(paymentId))
                 .isInstanceOf(PaymentNotFoundException.class)
@@ -80,7 +87,7 @@ class PaymentServiceTest {
         Payment payment = new Payment(UUID.randomUUID(), customerId, new BigDecimal("19.99"));
         when(paymentRepository.findByCustomerId(customerId, pageable))
                 .thenReturn(new PageImpl<>(List.of(payment), pageable, 1));
-        PaymentService paymentService = new PaymentService(paymentRepository);
+        PaymentService paymentService = paymentService();
 
         Page<PaymentResponse> result = paymentService.getPaymentsByCustomer(customerId, pageable);
 
@@ -96,7 +103,7 @@ class PaymentServiceTest {
         Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("19.99"));
         when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(payment));
         when(paymentRepository.save(payment)).thenReturn(payment);
-        PaymentService paymentService = new PaymentService(paymentRepository);
+        PaymentService paymentService = paymentService();
 
         Payment result = paymentService.transitionPaymentStatus(paymentId, PaymentStatus.SUCCESS);
 
@@ -110,11 +117,37 @@ class PaymentServiceTest {
         Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("19.99"));
         payment.transitionTo(PaymentStatus.FAILED);
         when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(payment));
-        PaymentService paymentService = new PaymentService(paymentRepository);
+        PaymentService paymentService = paymentService();
 
         assertThatThrownBy(() -> paymentService.transitionPaymentStatus(paymentId, PaymentStatus.SUCCESS))
                 .isInstanceOf(InvalidPaymentStatusTransitionException.class);
         verify(paymentRepository, never()).save(payment);
+    }
+
+    @Test
+    void shouldPersistPaymentStatusChangedEventInOutbox() throws Exception {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("19.99"));
+        Payment savedPayment = org.mockito.Mockito.mock(Payment.class);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(payment)).thenReturn(savedPayment);
+        when(savedPayment.getId()).thenReturn(paymentId);
+        when(savedPayment.getOrderId()).thenReturn(payment.getOrderId());
+        when(savedPayment.getStatus()).thenReturn(PaymentStatus.SUCCESS);
+        PaymentService paymentService = paymentService();
+
+        paymentService.transitionPaymentStatus(paymentId, PaymentStatus.SUCCESS);
+
+        ArgumentCaptor<PaymentOutboxEvent> eventCaptor = ArgumentCaptor.forClass(PaymentOutboxEvent.class);
+        verify(paymentOutboxEventRepository).save(eventCaptor.capture());
+        PaymentStatusChangedEvent event = new ObjectMapper().readValue(
+                eventCaptor.getValue().getPayload(),
+                PaymentStatusChangedEvent.class
+        );
+        assertThat(event.paymentId()).isEqualTo(paymentId);
+        assertThat(event.orderId()).isEqualTo(payment.getOrderId());
+        assertThat(event.status()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(eventCaptor.getValue().getTopic()).isEqualTo("payment-status-changed");
     }
 
     @Test
@@ -123,7 +156,7 @@ class PaymentServiceTest {
         UUID customerId = UUID.randomUUID();
         when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        PaymentService paymentService = new PaymentService(paymentRepository);
+        PaymentService paymentService = paymentService();
 
         Payment payment = paymentService.initiatePaymentForOrder(orderId, customerId, new BigDecimal("42.50"));
 
@@ -138,11 +171,14 @@ class PaymentServiceTest {
         UUID orderId = UUID.randomUUID();
         Payment existing = new Payment(orderId, UUID.randomUUID(), new BigDecimal("42.50"));
         when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.of(existing));
-        PaymentService paymentService = new PaymentService(paymentRepository);
+        PaymentService paymentService = paymentService();
 
         Payment payment = paymentService.initiatePaymentForOrder(orderId, UUID.randomUUID(), new BigDecimal("42.50"));
 
         assertThat(payment).isSameAs(existing);
         verify(paymentRepository, never()).save(any(Payment.class));
+    }
+    private PaymentService paymentService() {
+        return new PaymentService(paymentRepository, paymentOutboxEventRepository, new ObjectMapper());
     }
 }
