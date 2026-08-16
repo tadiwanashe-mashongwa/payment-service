@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
 
@@ -39,5 +41,13 @@ public class PaymentController {
     @GetMapping("/{paymentId}")
     public PaymentResponse getPayment(@PathVariable UUID paymentId) {
         return PaymentResponse.from(paymentService.getPayment(paymentId));
+    }
+
+    @GetMapping("/customer/{customerId}")
+    public Page<PaymentResponse> getPaymentsByCustomer(
+            @PathVariable UUID customerId,
+            Pageable pageable
+    ) {
+        return paymentService.getPaymentsByCustomer(customerId, pageable);
     }
 }

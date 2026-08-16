@@ -2,16 +2,20 @@ package com.example.paymentservice.controller;
 
 import com.example.paymentservice.entity.Payment;
 import com.example.paymentservice.exception.PaymentNotFoundException;
+import com.example.paymentservice.dto.PaymentResponse;
 import com.example.paymentservice.service.PaymentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -112,5 +116,29 @@ class PaymentControllerTest {
 
         mockMvc.perform(get("/api/payments/{paymentId}", paymentId))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldReturnPaginatedPaymentsForCustomer() throws Exception {
+        UUID customerId = UUID.randomUUID();
+        PaymentResponse payment = new PaymentResponse(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                customerId,
+                new BigDecimal("19.99"),
+                com.example.paymentservice.entity.PaymentStatus.PENDING
+        );
+        when(paymentService.getPaymentsByCustomer(eq(customerId), any()))
+                .thenReturn(new PageImpl<>(List.of(payment), PageRequest.of(0, 1), 1));
+
+        mockMvc.perform(get("/api/payments/customer/{customerId}", customerId)
+                        .param("page", "0")
+                        .param("size", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].customerId").value(customerId.toString()))
+                .andExpect(jsonPath("$.content[0].status").value("PENDING"))
+                .andExpect(jsonPath("$.totalElements").value(1));
+
+        verify(paymentService).getPaymentsByCustomer(eq(customerId), any());
     }
 }

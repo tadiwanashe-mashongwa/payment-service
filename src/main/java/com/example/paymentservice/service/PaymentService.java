@@ -1,9 +1,12 @@
 package com.example.paymentservice.service;
 
 import com.example.paymentservice.entity.Payment;
+import com.example.paymentservice.dto.PaymentResponse;
 import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.repository.PaymentRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -24,5 +27,10 @@ public class PaymentService {
     public Payment getPayment(UUID paymentId) {
         return paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new PaymentNotFoundException(paymentId));
+    }
+
+    public Page<PaymentResponse> getPaymentsByCustomer(UUID customerId, Pageable pageable) {
+        return paymentRepository.findByCustomerId(customerId, pageable)
+                .map(PaymentResponse::from);
     }
 }

@@ -13,6 +13,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.Optional;
+import java.util.List;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import com.example.paymentservice.dto.PaymentResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -63,5 +69,22 @@ class PaymentServiceTest {
         assertThatThrownBy(() -> paymentService.getPayment(paymentId))
                 .isInstanceOf(PaymentNotFoundException.class)
                 .hasMessageContaining(paymentId.toString());
+    }
+
+    @Test
+    void shouldReturnPaginatedPaymentsForCustomer() {
+        UUID customerId = UUID.randomUUID();
+        PageRequest pageable = PageRequest.of(0, 10);
+        Payment payment = new Payment(UUID.randomUUID(), customerId, new BigDecimal("19.99"));
+        when(paymentRepository.findByCustomerId(customerId, pageable))
+                .thenReturn(new PageImpl<>(List.of(payment), pageable, 1));
+        PaymentService paymentService = new PaymentService(paymentRepository);
+
+        Page<PaymentResponse> result = paymentService.getPaymentsByCustomer(customerId, pageable);
+
+        assertThat(result.getContent())
+                .singleElement()
+                .satisfies(response -> assertThat(response.customerId()).isEqualTo(customerId));
+        verify(paymentRepository).findByCustomerId(customerId, pageable);
     }
 }

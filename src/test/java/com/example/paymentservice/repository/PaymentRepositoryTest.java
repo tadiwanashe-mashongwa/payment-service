@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -49,5 +51,20 @@ class PaymentRepositoryTest {
                     assertThat(found.getOrderId()).isEqualTo(orderId);
                     assertThat(found.getStatus()).isEqualTo(PaymentStatus.PENDING);
                 });
+    }
+
+    @Test
+    void shouldFindPaymentsByCustomerWithPagination() {
+        UUID customerId = UUID.randomUUID();
+        paymentRepository.save(new Payment(UUID.randomUUID(), customerId, new BigDecimal("19.99")));
+        paymentRepository.save(new Payment(UUID.randomUUID(), customerId, new BigDecimal("29.99")));
+        paymentRepository.save(new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("39.99")));
+
+        Page<Payment> result = paymentRepository.findByCustomerId(customerId, PageRequest.of(0, 1));
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getContent()).allSatisfy(payment ->
+                assertThat(payment.getCustomerId()).isEqualTo(customerId));
     }
 }
