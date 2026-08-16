@@ -46,6 +46,7 @@ class PaymentServiceTest {
     void shouldCreatePendingPayment() {
         UUID orderId = UUID.randomUUID();
         UUID customerId = UUID.randomUUID();
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
         PaymentService paymentService = paymentService();
 
@@ -55,6 +56,19 @@ class PaymentServiceTest {
         verify(paymentRepository).save(paymentCaptor.capture());
         assertThat(paymentCaptor.getValue().getStatus()).isEqualTo(PaymentStatus.PENDING);
         assertThat(result).isSameAs(paymentCaptor.getValue());
+    }
+
+    @Test
+    void shouldReuseExistingPaymentForDuplicateDirectCreation() {
+        UUID orderId = UUID.randomUUID();
+        Payment existing = new Payment(orderId, UUID.randomUUID(), new BigDecimal("19.99"));
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.of(existing));
+        PaymentService paymentService = paymentService();
+
+        Payment result = paymentService.initiatePayment(orderId, UUID.randomUUID(), new BigDecimal("19.99"));
+
+        assertThat(result).isSameAs(existing);
+        verify(paymentRepository, never()).save(any(Payment.class));
     }
 
     @Test

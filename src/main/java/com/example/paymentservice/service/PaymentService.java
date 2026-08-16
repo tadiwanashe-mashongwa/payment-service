@@ -36,7 +36,7 @@ public class PaymentService {
     }
 
     public Payment initiatePayment(UUID orderId, UUID customerId, BigDecimal amount) {
-        return paymentRepository.save(new Payment(orderId, customerId, amount));
+        return initiatePaymentForOrder(orderId, customerId, amount);
     }
 
     @Transactional
