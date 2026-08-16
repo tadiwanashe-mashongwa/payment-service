@@ -1,6 +1,7 @@
 package com.example.paymentservice.outbox;
 
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ public class PaymentOutboxRelay {
     }
 
     @Transactional
+    @Scheduled(fixedDelayString = "${payment.outbox.relay.fixed-delay:1000}")
     public void relayPendingEvents() {
         paymentOutboxEventRepository.findByPublishedFalseOrderByCreatedAtAsc()
                 .forEach(this::publish);

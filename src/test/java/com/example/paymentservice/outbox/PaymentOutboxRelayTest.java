@@ -5,6 +5,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.util.List;
 import java.util.UUID;
@@ -67,5 +68,16 @@ class PaymentOutboxRelayTest {
 
         verify(paymentOutboxEventRepository, never()).save(event);
         assertThat(event.isPublished()).isFalse();
+    }
+
+    @Test
+    void shouldScheduleOutboxRelayAtConfiguredFixedDelay() throws NoSuchMethodException {
+        Scheduled scheduled = PaymentOutboxRelay.class
+                .getMethod("relayPendingEvents")
+                .getAnnotation(Scheduled.class);
+
+        assertThat(scheduled).isNotNull();
+        assertThat(scheduled.fixedDelayString())
+                .isEqualTo("${payment.outbox.relay.fixed-delay:1000}");
     }
 }
