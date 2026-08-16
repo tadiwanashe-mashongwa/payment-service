@@ -26,6 +26,12 @@ public class PaymentService {
         return paymentRepository.save(new Payment(orderId, customerId, amount));
     }
 
+    @Transactional
+    public Payment initiatePaymentForOrder(UUID orderId, UUID customerId, BigDecimal amount) {
+        return paymentRepository.findByOrderId(orderId)
+                .orElseGet(() -> paymentRepository.save(new Payment(orderId, customerId, amount)));
+    }
+
     public Payment getPayment(UUID paymentId) {
         return paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new PaymentNotFoundException(paymentId));

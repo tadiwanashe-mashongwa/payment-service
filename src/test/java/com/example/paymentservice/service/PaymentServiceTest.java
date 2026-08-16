@@ -116,4 +116,33 @@ class PaymentServiceTest {
                 .isInstanceOf(InvalidPaymentStatusTransitionException.class);
         verify(paymentRepository, never()).save(payment);
     }
+
+    @Test
+    void shouldInitiateOnlyOnePaymentForAnOrder() {
+        UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        PaymentService paymentService = new PaymentService(paymentRepository);
+
+        Payment payment = paymentService.initiatePaymentForOrder(orderId, customerId, new BigDecimal("42.50"));
+
+        assertThat(payment.getOrderId()).isEqualTo(orderId);
+        assertThat(payment.getCustomerId()).isEqualTo(customerId);
+        assertThat(payment.getAmount()).isEqualByComparingTo("42.50");
+        verify(paymentRepository).save(any(Payment.class));
+    }
+
+    @Test
+    void shouldReuseExistingPaymentForDuplicateOrderCreatedEvent() {
+        UUID orderId = UUID.randomUUID();
+        Payment existing = new Payment(orderId, UUID.randomUUID(), new BigDecimal("42.50"));
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.of(existing));
+        PaymentService paymentService = new PaymentService(paymentRepository);
+
+        Payment payment = paymentService.initiatePaymentForOrder(orderId, UUID.randomUUID(), new BigDecimal("42.50"));
+
+        assertThat(payment).isSameAs(existing);
+        verify(paymentRepository, never()).save(any(Payment.class));
+    }
 }

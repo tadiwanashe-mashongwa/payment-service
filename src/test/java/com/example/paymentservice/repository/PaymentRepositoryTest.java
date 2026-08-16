@@ -67,4 +67,14 @@ class PaymentRepositoryTest {
         assertThat(result.getContent()).allSatisfy(payment ->
                 assertThat(payment.getCustomerId()).isEqualTo(customerId));
     }
+
+    @Test
+    void shouldFindPaymentByOrderId() {
+        UUID orderId = UUID.randomUUID();
+        Payment persisted = paymentRepository.save(
+                new Payment(orderId, UUID.randomUUID(), new BigDecimal("42.50"))
+        );
+
+        assertThat(paymentRepository.findByOrderId(orderId)).contains(persisted);
+    }
 }
