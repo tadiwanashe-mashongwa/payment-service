@@ -1,6 +1,7 @@
 package com.example.paymentservice.controller;
 
 import com.example.paymentservice.entity.Payment;
+import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.service.PaymentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -80,5 +82,35 @@ class PaymentControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void shouldReturnPaymentById() throws Exception {
+        UUID paymentId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        Payment payment = mock(Payment.class);
+        when(payment.getId()).thenReturn(paymentId);
+        when(payment.getOrderId()).thenReturn(orderId);
+        when(payment.getCustomerId()).thenReturn(customerId);
+        when(payment.getAmount()).thenReturn(new BigDecimal("19.99"));
+        when(payment.getStatus()).thenReturn(com.example.paymentservice.entity.PaymentStatus.PENDING);
+        when(paymentService.getPayment(paymentId)).thenReturn(payment);
+
+        mockMvc.perform(get("/api/payments/{paymentId}", paymentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(paymentId.toString()))
+                .andExpect(jsonPath("$.status").value("PENDING"));
+
+        verify(paymentService).getPayment(paymentId);
+    }
+
+    @Test
+    void shouldReturnNotFoundWhenPaymentDoesNotExist() throws Exception {
+        UUID paymentId = UUID.randomUUID();
+        when(paymentService.getPayment(paymentId)).thenThrow(new PaymentNotFoundException(paymentId));
+
+        mockMvc.perform(get("/api/payments/{paymentId}", paymentId))
+                .andExpect(status().isNotFound());
     }
 }

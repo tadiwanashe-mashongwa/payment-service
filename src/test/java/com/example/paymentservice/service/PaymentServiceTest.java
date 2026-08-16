@@ -2,6 +2,7 @@ package com.example.paymentservice.service;
 
 import com.example.paymentservice.entity.Payment;
 import com.example.paymentservice.entity.PaymentStatus;
+import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.repository.PaymentRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,8 +12,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,5 +39,29 @@ class PaymentServiceTest {
         verify(paymentRepository).save(paymentCaptor.capture());
         assertThat(paymentCaptor.getValue().getStatus()).isEqualTo(PaymentStatus.PENDING);
         assertThat(result).isSameAs(paymentCaptor.getValue());
+    }
+
+    @Test
+    void shouldReturnPaymentById() {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("19.99"));
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(payment));
+        PaymentService paymentService = new PaymentService(paymentRepository);
+
+        Payment result = paymentService.getPayment(paymentId);
+
+        assertThat(result).isSameAs(payment);
+        verify(paymentRepository).findById(paymentId);
+    }
+
+    @Test
+    void shouldThrowWhenPaymentDoesNotExist() {
+        UUID paymentId = UUID.randomUUID();
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.empty());
+        PaymentService paymentService = new PaymentService(paymentRepository);
+
+        assertThatThrownBy(() -> paymentService.getPayment(paymentId))
+                .isInstanceOf(PaymentNotFoundException.class)
+                .hasMessageContaining(paymentId.toString());
     }
 }
