@@ -58,6 +58,9 @@ public class PaymentService {
     @Transactional
     public Payment transitionPaymentStatus(UUID paymentId, PaymentStatus targetStatus) {
         Payment payment = getPayment(paymentId);
+        if (payment.getStatus() == targetStatus) {
+            return payment;
+        }
         payment.transitionTo(targetStatus);
         Payment savedPayment = paymentRepository.save(payment);
         PaymentStatusChangedEvent event = new PaymentStatusChangedEvent(

@@ -31,6 +31,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -122,6 +123,21 @@ class PaymentServiceTest {
         assertThatThrownBy(() -> paymentService.transitionPaymentStatus(paymentId, PaymentStatus.SUCCESS))
                 .isInstanceOf(InvalidPaymentStatusTransitionException.class);
         verify(paymentRepository, never()).save(payment);
+    }
+
+    @Test
+    void shouldIgnoreDuplicatePaymentStatusTransition() {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("19.99"));
+        payment.transitionTo(PaymentStatus.SUCCESS);
+        when(paymentRepository.findById(paymentId)).thenReturn(Optional.of(payment));
+        PaymentService paymentService = paymentService();
+
+        Payment result = paymentService.transitionPaymentStatus(paymentId, PaymentStatus.SUCCESS);
+
+        assertThat(result.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        verify(paymentRepository, never()).save(payment);
+        verifyNoInteractions(paymentOutboxEventRepository);
     }
 
     @Test
