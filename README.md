@@ -146,6 +146,12 @@ The suite covers domain transitions, service behaviour, controller and security 
 
 The JaCoCo HTML report is generated at `target/site/jacoco/index.html`.
 
+## API screenshot
+
+Swagger UI from the running secured service:
+
+![SpareLink Payment Service Swagger UI](docs/images/swagger-ui.png)
+
 ## Project structure
 
 ```text
