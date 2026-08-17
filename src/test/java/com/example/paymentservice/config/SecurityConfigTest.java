@@ -1,7 +1,9 @@
 package com.example.paymentservice.config;
 
 import com.example.paymentservice.controller.PaymentController;
+import com.example.paymentservice.controller.PaymentOutboxController;
 import com.example.paymentservice.service.PaymentService;
+import com.example.paymentservice.service.PaymentOutboxService;
 import com.example.paymentservice.exception.PaymentNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,12 +19,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import org.springframework.data.domain.PageImpl;
+import java.util.List;
 
-@WebMvcTest(PaymentController.class)
+@WebMvcTest({PaymentController.class, PaymentOutboxController.class})
 @Import(SecurityConfig.class)
 class SecurityConfigTest {
     @Autowired MockMvc mockMvc;
     @MockitoBean PaymentService paymentService;
+    @MockitoBean PaymentOutboxService paymentOutboxService;
     @MockitoBean JwtDecoder jwtDecoder;
 
     @Test void shouldRejectUnauthenticatedPaymentLookup() throws Exception {
@@ -43,5 +49,22 @@ class SecurityConfigTest {
 
     @Test void shouldPermitOpenApiDocumentation() throws Exception {
         mockMvc.perform(get("/v3/api-docs")).andExpect(status().isNotFound());
+    }
+
+    @Test void shouldRejectUnauthenticatedPaymentOutboxLookup() throws Exception {
+        mockMvc.perform(get("/api/payment-outbox/dead-lettered")).andExpect(status().isUnauthorized());
+    }
+
+    @Test void shouldRejectCustomerPaymentOutboxLookup() throws Exception {
+        mockMvc.perform(get("/api/payment-outbox/dead-lettered")
+                .with(jwt().authorities(AuthorityUtils.createAuthorityList("ROLE_CUSTOMER"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test void shouldAllowAdminPaymentOutboxLookup() throws Exception {
+        when(paymentOutboxService.getDeadLetteredEvents(any())).thenReturn(new PageImpl<>(List.of()));
+        mockMvc.perform(get("/api/payment-outbox/dead-lettered")
+                .with(jwt().authorities(AuthorityUtils.createAuthorityList("ROLE_ADMIN"))))
+                .andExpect(status().isOk());
     }
 }
