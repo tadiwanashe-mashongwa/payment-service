@@ -40,4 +40,8 @@ class SecurityConfigTest {
         mockMvc.perform(post("/api/payments").with(jwt().authorities(AuthorityUtils.createAuthorityList("ROLE_CUSTOMER"))))
                 .andExpect(status().isForbidden());
     }
+
+    @Test void shouldPermitOpenApiDocumentation() throws Exception {
+        mockMvc.perform(get("/v3/api-docs")).andExpect(status().isNotFound());
+    }
 }

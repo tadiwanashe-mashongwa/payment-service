@@ -8,6 +8,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -18,13 +19,20 @@ import static org.springframework.http.HttpMethod.GET;
 @Configuration
 public class SecurityConfig {
 
+    private static final RequestMatcher API_DOCUMENTATION = request ->
+            request.getRequestURI().equals("/v3/api-docs")
+                    || request.getRequestURI().startsWith("/v3/api-docs/")
+                    || request.getRequestURI().equals("/swagger-ui.html")
+                    || request.getRequestURI().startsWith("/swagger-ui/");
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/actuator/health", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers(API_DOCUMENTATION).permitAll()
                         .requestMatchers(GET, "/api/payments/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/payments/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
