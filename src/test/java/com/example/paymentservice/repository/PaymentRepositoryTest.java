@@ -8,6 +8,7 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import jakarta.persistence.EntityManager;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -31,6 +32,9 @@ class PaymentRepositoryTest {
     @Autowired
     private PaymentRepository paymentRepository;
 
+    @Autowired
+    private EntityManager entityManager;
+
     @DynamicPropertySource
     static void configureDatabase(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
@@ -44,13 +48,17 @@ class PaymentRepositoryTest {
         UUID orderId = UUID.randomUUID();
         Payment payment = new Payment(orderId, UUID.randomUUID(), new BigDecimal("19.99"));
 
-        Payment persisted = paymentRepository.save(payment);
+        Payment persisted = paymentRepository.saveAndFlush(payment);
+        entityManager.clear();
 
         assertThat(paymentRepository.findById(persisted.getId()))
                 .get()
                 .satisfies(found -> {
                     assertThat(found.getOrderId()).isEqualTo(orderId);
                     assertThat(found.getStatus()).isEqualTo(PaymentStatus.PENDING);
+                    assertThat(found.getCreatedAt()).isNotNull();
+                    assertThat(found.getUpdatedAt()).isNotNull();
+                    assertThat(found.getVersion()).isZero();
                 });
     }
 
@@ -87,5 +95,24 @@ class PaymentRepositoryTest {
         assertThatThrownBy(() -> paymentRepository.saveAndFlush(
                 new Payment(orderId, UUID.randomUUID(), new BigDecimal("42.50"))
         )).isInstanceOf(Exception.class);
+    }
+
+    @Test
+    void shouldRejectAStaleConcurrentPaymentUpdate() {
+        Payment persisted = paymentRepository.saveAndFlush(
+                new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("42.50"))
+        );
+        entityManager.clear();
+        Payment firstCopy = paymentRepository.findById(persisted.getId()).orElseThrow();
+        entityManager.detach(firstCopy);
+        Payment secondCopy = paymentRepository.findById(persisted.getId()).orElseThrow();
+        entityManager.detach(secondCopy);
+
+        firstCopy.transitionTo(PaymentStatus.SUCCESS);
+        paymentRepository.saveAndFlush(firstCopy);
+        secondCopy.transitionTo(PaymentStatus.FAILED);
+
+        assertThatThrownBy(() -> paymentRepository.saveAndFlush(secondCopy))
+                .isInstanceOf(org.springframework.orm.ObjectOptimisticLockingFailureException.class);
     }
 }
