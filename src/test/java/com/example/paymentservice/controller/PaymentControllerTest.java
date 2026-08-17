@@ -31,6 +31,8 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import org.springframework.security.core.authority.AuthorityUtils;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -151,6 +153,33 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.totalElements").value(1));
 
         verify(paymentService).getPaymentsByCustomer(eq(customerId), any());
+    }
+
+    @Test
+    void shouldRejectCustomerReadingAnotherCustomersPayments() throws Exception {
+        UUID customerId = UUID.randomUUID();
+
+        mockMvc.perform(get("/api/payments/customer/{customerId}", customerId)
+                        .with(jwt().jwt(token -> token.subject(UUID.randomUUID().toString()))
+                                .authorities(AuthorityUtils.createAuthorityList("ROLE_CUSTOMER"))))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void shouldRejectCustomerReadingAnotherCustomersPaymentById() throws Exception {
+        UUID paymentId = UUID.randomUUID();
+        Payment payment = mock(Payment.class);
+        when(payment.getCustomerId()).thenReturn(UUID.randomUUID());
+        when(paymentService.getPayment(paymentId)).thenReturn(payment);
+
+        mockMvc.perform(get("/api/payments/{paymentId}", paymentId)
+                        .with(jwt().jwt(token -> token.subject(UUID.randomUUID().toString()))
+                                .authorities(AuthorityUtils.createAuthorityList("ROLE_CUSTOMER"))))
+                .andExpect(status().isForbidden());
+
+        verify(paymentService).getPayment(paymentId);
     }
 
     @Test

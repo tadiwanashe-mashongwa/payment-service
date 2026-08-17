@@ -17,6 +17,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.UUID;
 
@@ -41,15 +45,24 @@ public class PaymentController {
     }
 
     @GetMapping("/{paymentId}")
-    public PaymentResponse getPayment(@PathVariable UUID paymentId) {
-        return PaymentResponse.from(paymentService.getPayment(paymentId));
+    public PaymentResponse getPayment(
+            @PathVariable UUID paymentId,
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication
+    ) {
+        Payment payment = paymentService.getPayment(paymentId);
+        ensureCustomerOwnsPayment(payment.getCustomerId(), jwt, authentication);
+        return PaymentResponse.from(payment);
     }
 
     @GetMapping("/customer/{customerId}")
     public Page<PaymentResponse> getPaymentsByCustomer(
             @PathVariable UUID customerId,
-            Pageable pageable
+            Pageable pageable,
+            @AuthenticationPrincipal Jwt jwt,
+            Authentication authentication
     ) {
+        ensureCustomerOwnsPayment(customerId, jwt, authentication);
         return paymentService.getPaymentsByCustomer(customerId, pageable);
     }
 
@@ -59,5 +72,16 @@ public class PaymentController {
             @Valid @RequestBody UpdatePaymentStatusRequest request
     ) {
         return PaymentResponse.from(paymentService.transitionPaymentStatus(paymentId, request.status()));
+    }
+
+    private void ensureCustomerOwnsPayment(UUID customerId, Jwt jwt, Authentication authentication) {
+        if (authentication.getAuthorities().stream()
+                .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"))) {
+            return;
+        }
+        if (jwt != null && customerId.toString().equals(jwt.getSubject())) {
+            return;
+        }
+        throw new AccessDeniedException("Customers can only access their own payments");
     }
 }
