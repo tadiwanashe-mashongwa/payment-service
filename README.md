@@ -1,5 +1,8 @@
 # SpareLink Payment Service
 
+[![CI](https://github.com/tadiwanashe-mashongwa/payment-service/actions/workflows/ci.yml/badge.svg)](https://github.com/tadiwanashe-mashongwa/payment-service/actions/workflows/ci.yml)
+[![JaCoCo coverage](https://raw.githubusercontent.com/tadiwanashe-mashongwa/payment-service/main/.github/badges/jacoco.svg)](https://github.com/tadiwanashe-mashongwa/payment-service/actions/workflows/ci.yml)
+
 The Payment Service owns the payment lifecycle for SpareLink orders. It creates one payment per order, publishes payment status changes, and never shares its database with another service.
 
 ## Responsibilities
