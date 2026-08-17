@@ -5,6 +5,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 @Component
 public class PaymentOutboxRelay {
 
@@ -22,13 +24,20 @@ public class PaymentOutboxRelay {
     @Transactional
     @Scheduled(fixedDelayString = "${payment.outbox.relay.fixed-delay:1000}")
     public void relayPendingEvents() {
-        paymentOutboxEventRepository.findByPublishedFalseOrderByCreatedAtAsc()
+        paymentOutboxEventRepository
+                .findTop100ByPublishedFalseAndDeadLetteredFalseAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
+                        Instant.now()
+                )
                 .forEach(this::publish);
     }
 
     private void publish(PaymentOutboxEvent event) {
-        kafkaTemplate.send(event.getTopic(), event.getAggregateId().toString(), event.getPayload()).join();
-        event.markPublished();
-        paymentOutboxEventRepository.save(event);
+        try {
+            kafkaTemplate.send(event.getTopic(), event.getAggregateId().toString(), event.getPayload()).join();
+            event.markPublished();
+            paymentOutboxEventRepository.save(event);
+        } catch (RuntimeException exception) {
+            event.recordFailure(exception);
+        }
     }
 }

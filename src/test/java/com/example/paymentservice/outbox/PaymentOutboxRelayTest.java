@@ -12,7 +12,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
@@ -35,7 +34,10 @@ class PaymentOutboxRelayTest {
                 "PaymentStatusChangedEvent",
                 "{\"paymentId\":\"%s\"}".formatted(paymentId)
         );
-        when(paymentOutboxEventRepository.findByPublishedFalseOrderByCreatedAtAsc())
+        when(paymentOutboxEventRepository
+                .findTop100ByPublishedFalseAndDeadLetteredFalseAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
+                        org.mockito.ArgumentMatchers.any(java.time.Instant.class)
+                ))
                 .thenReturn(List.of(event));
         when(kafkaTemplate.send(event.getTopic(), paymentId.toString(), event.getPayload()))
                 .thenReturn(CompletableFuture.completedFuture(null));
@@ -49,7 +51,7 @@ class PaymentOutboxRelayTest {
     }
 
     @Test
-    void shouldLeaveEventUnpublishedWhenKafkaSendFails() {
+    void shouldRecordFailureAndKeepEventPendingWhenKafkaSendFails() {
         UUID paymentId = UUID.randomUUID();
         PaymentOutboxEvent event = new PaymentOutboxEvent(
                 paymentId,
@@ -57,17 +59,49 @@ class PaymentOutboxRelayTest {
                 "PaymentStatusChangedEvent",
                 "{\"paymentId\":\"%s\"}".formatted(paymentId)
         );
-        when(paymentOutboxEventRepository.findByPublishedFalseOrderByCreatedAtAsc())
+        when(paymentOutboxEventRepository
+                .findTop100ByPublishedFalseAndDeadLetteredFalseAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
+                        org.mockito.ArgumentMatchers.any(java.time.Instant.class)
+                ))
                 .thenReturn(List.of(event));
         when(kafkaTemplate.send(event.getTopic(), paymentId.toString(), event.getPayload()))
                 .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("Kafka unavailable")));
         PaymentOutboxRelay relay = new PaymentOutboxRelay(paymentOutboxEventRepository, kafkaTemplate);
 
-        assertThatThrownBy(relay::relayPendingEvents)
-                .isInstanceOf(java.util.concurrent.CompletionException.class);
+        relay.relayPendingEvents();
 
         verify(paymentOutboxEventRepository, never()).save(event);
         assertThat(event.isPublished()).isFalse();
+        assertThat(event.getAttemptCount()).isEqualTo(1);
+        assertThat(event.getLastError()).contains("Kafka unavailable");
+        assertThat(event.getNextAttemptAt()).isAfter(java.time.Instant.now());
+    }
+
+    @Test
+    void shouldDeadLetterEventAfterThirdKafkaSendFailure() {
+        UUID paymentId = UUID.randomUUID();
+        PaymentOutboxEvent event = new PaymentOutboxEvent(
+                paymentId,
+                "payment-status-changed",
+                "PaymentStatusChangedEvent",
+                "{\"paymentId\":\"%s\"}".formatted(paymentId)
+        );
+        event.recordFailure(new IllegalStateException("Kafka unavailable"));
+        event.recordFailure(new IllegalStateException("Kafka unavailable"));
+        when(paymentOutboxEventRepository
+                .findTop100ByPublishedFalseAndDeadLetteredFalseAndNextAttemptAtLessThanEqualOrderByCreatedAtAsc(
+                        org.mockito.ArgumentMatchers.any(java.time.Instant.class)
+                ))
+                .thenReturn(List.of(event));
+        when(kafkaTemplate.send(event.getTopic(), paymentId.toString(), event.getPayload()))
+                .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("Kafka unavailable")));
+        PaymentOutboxRelay relay = new PaymentOutboxRelay(paymentOutboxEventRepository, kafkaTemplate);
+
+        relay.relayPendingEvents();
+
+        assertThat(event.isPublished()).isFalse();
+        assertThat(event.getAttemptCount()).isEqualTo(3);
+        assertThat(event.isDeadLettered()).isTrue();
     }
 
     @Test

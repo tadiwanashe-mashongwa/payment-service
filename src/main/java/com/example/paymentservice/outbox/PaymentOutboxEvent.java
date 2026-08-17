@@ -33,6 +33,18 @@ public class PaymentOutboxEvent {
     @Column(nullable = false)
     private boolean published;
 
+    @Column(nullable = false)
+    private int attemptCount;
+
+    @Column(columnDefinition = "TEXT")
+    private String lastError;
+
+    @Column(nullable = false)
+    private Instant nextAttemptAt = Instant.now();
+
+    @Column(nullable = false)
+    private boolean deadLettered;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -52,8 +64,24 @@ public class PaymentOutboxEvent {
     public UUID getAggregateId() { return aggregateId; }
 
     public boolean isPublished() { return published; }
+    public int getAttemptCount() { return attemptCount; }
+    public String getLastError() { return lastError; }
+    public Instant getNextAttemptAt() { return nextAttemptAt; }
+    public boolean isDeadLettered() { return deadLettered; }
 
     public void markPublished() {
         this.published = true;
+    }
+
+    public void recordFailure(Exception exception) {
+        attemptCount++;
+        lastError = exception.getCause() == null
+                ? exception.getMessage()
+                : exception.getCause().getMessage();
+        if (attemptCount >= 3) {
+            deadLettered = true;
+        } else {
+            nextAttemptAt = Instant.now().plusSeconds(1L << (attemptCount - 1));
+        }
     }
 }
