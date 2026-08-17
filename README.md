@@ -1,7 +1,7 @@
 # SpareLink Payment Service
 
 [![CI](https://github.com/tadiwanashe-mashongwa/payment-service/actions/workflows/ci.yml/badge.svg)](https://github.com/tadiwanashe-mashongwa/payment-service/actions/workflows/ci.yml)
-[![JaCoCo coverage](https://raw.githubusercontent.com/tadiwanashe-mashongwa/payment-service/main/.github/badges/jacoco.svg)](https://github.com/tadiwanashe-mashongwa/payment-service/actions/workflows/ci.yml)
+[![JaCoCo coverage](https://github.com/tadiwanashe-mashongwa/payment-service/raw/main/.github/badges/jacoco.svg)](https://github.com/tadiwanashe-mashongwa/payment-service/actions/workflows/ci.yml)
 [![Java 17](https://img.shields.io/badge/Java-17-orange)](https://openjdk.org/projects/jdk/17/)
 [![Spring Boot 3.5.5](https://img.shields.io/badge/Spring%20Boot-3.5.5-brightgreen)](https://spring.io/projects/spring-boot)
 
