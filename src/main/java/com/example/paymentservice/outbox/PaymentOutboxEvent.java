@@ -60,6 +60,7 @@ public class PaymentOutboxEvent {
     }
 
     public String getPayload() { return payload; }
+    public UUID getId() { return id; }
     public String getTopic() { return topic; }
     public UUID getAggregateId() { return aggregateId; }
 
@@ -83,5 +84,12 @@ public class PaymentOutboxEvent {
         } else {
             nextAttemptAt = Instant.now().plusSeconds(1L << (attemptCount - 1));
         }
+    }
+
+    public void requeue() {
+        deadLettered = false;
+        attemptCount = 0;
+        lastError = null;
+        nextAttemptAt = Instant.now();
     }
 }
