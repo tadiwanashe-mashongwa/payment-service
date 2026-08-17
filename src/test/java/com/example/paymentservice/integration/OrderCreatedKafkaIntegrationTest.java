@@ -6,7 +6,12 @@ import com.example.paymentservice.repository.PaymentRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -24,7 +29,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @Testcontainers
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@Import(OrderCreatedKafkaIntegrationTest.JwtTestConfiguration.class)
 class OrderCreatedKafkaIntegrationTest {
+
+    @TestConfiguration
+    static class JwtTestConfiguration {
+        @Bean
+        JwtDecoder jwtDecoder() {
+            return token -> {
+                throw new JwtException("JWT decoding is not used by this Kafka integration test");
+            };
+        }
+    }
 
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine");

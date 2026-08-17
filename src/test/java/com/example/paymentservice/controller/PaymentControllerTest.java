@@ -5,6 +5,7 @@ import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.exception.InvalidPaymentStatusTransitionException;
 import com.example.paymentservice.dto.PaymentResponse;
 import com.example.paymentservice.service.PaymentService;
+import com.example.paymentservice.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -13,6 +14,9 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.context.annotation.Import;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -31,6 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(PaymentController.class)
+@Import(SecurityConfig.class)
+@WithMockUser(roles = "ADMIN")
 class PaymentControllerTest {
 
     @Autowired
@@ -38,6 +44,9 @@ class PaymentControllerTest {
 
     @MockitoBean
     private PaymentService paymentService;
+
+    @MockitoBean
+    private JwtDecoder jwtDecoder;
 
     @Test
     void shouldCreatePendingPayment() throws Exception {
