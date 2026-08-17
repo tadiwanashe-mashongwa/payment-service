@@ -9,6 +9,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.PageImpl;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -36,5 +39,14 @@ class PaymentOutboxServiceTest {
         assertThat(event.isDeadLettered()).isFalse();
         assertThat(event.getAttemptCount()).isZero();
         assertThat(event.getLastError()).isNull();
+    }
+
+    @Test
+    void shouldListDeadLetteredPaymentOutboxEvents() {
+        when(paymentOutboxEventRepository.findByDeadLetteredTrue(PageRequest.of(0, 10)))
+                .thenReturn(new PageImpl<>(List.of()));
+        PaymentOutboxService service = new PaymentOutboxService(paymentOutboxEventRepository);
+
+        assertThat(service.getDeadLetteredEvents(PageRequest.of(0, 10)).getContent()).isEmpty();
     }
 }

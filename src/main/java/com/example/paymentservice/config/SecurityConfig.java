@@ -33,6 +33,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(API_DOCUMENTATION).permitAll()
+                        .requestMatchers("/api/payment-outbox/**").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/payments/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/payments/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
