@@ -64,7 +64,7 @@ Use Swagger UI for the generated request and response schemas.
 ## Tests
 
 ```powershell
-.\mvnw.cmd test
+mvn test
 ```
 
 The suite covers domain transitions, service behaviour, controller and security rules, Flyway/JPA repository behaviour, Kafka consumption, and outbox publishing. Testcontainers provides real PostgreSQL and Kafka where integration coverage requires them.
