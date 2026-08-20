@@ -8,6 +8,9 @@ import com.example.paymentservice.repository.PaymentRepository;
 import com.example.paymentservice.outbox.PaymentOutboxEvent;
 import com.example.paymentservice.outbox.PaymentOutboxEventRepository;
 import com.example.paymentservice.event.PaymentStatusChangedEvent;
+import com.example.paymentservice.client.CustomerContactClient;
+import com.example.paymentservice.provider.MobileMoneyChargeRequest;
+import com.example.paymentservice.provider.MobileMoneyProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +35,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -42,20 +46,48 @@ class PaymentServiceTest {
     @Mock
     private PaymentOutboxEventRepository paymentOutboxEventRepository;
 
+    @Mock
+    private CustomerContactClient customerContactClient;
+
+    @Mock
+    private MobileMoneyProvider mobileMoneyProvider;
+
     @Test
     void shouldCreatePendingPayment() {
         UUID orderId = UUID.randomUUID();
         UUID customerId = UUID.randomUUID();
         when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(customerContactClient.paymentPhoneNumber(customerId)).thenReturn("+263771000000");
+        when(mobileMoneyProvider.initiateCharge(any(MobileMoneyChargeRequest.class))).thenReturn("SIM-default");
         PaymentService paymentService = paymentService();
 
         Payment result = paymentService.initiatePayment(orderId, customerId, new BigDecimal("19.99"));
 
         ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
-        verify(paymentRepository).save(paymentCaptor.capture());
+        verify(paymentRepository, times(2)).save(paymentCaptor.capture());
         assertThat(paymentCaptor.getValue().getStatus()).isEqualTo(PaymentStatus.PENDING);
         assertThat(result).isSameAs(paymentCaptor.getValue());
+    }
+
+    @Test
+    void shouldInitiateMobileMoneyChargeAndStoreProviderReferenceForNewPayment() {
+        UUID orderId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
+        when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
+        when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(customerContactClient.paymentPhoneNumber(customerId)).thenReturn("+263771000000");
+        when(mobileMoneyProvider.initiateCharge(any(MobileMoneyChargeRequest.class))).thenReturn("SIM-12345");
+        PaymentService paymentService = paymentService();
+
+        Payment payment = paymentService.initiatePaymentForOrder(orderId, customerId, new BigDecimal("42.50"));
+
+        assertThat(payment.getProviderReference()).isEqualTo("SIM-12345");
+        verify(customerContactClient).paymentPhoneNumber(customerId);
+        verify(mobileMoneyProvider).initiateCharge(new MobileMoneyChargeRequest(
+                orderId, customerId, "+263771000000", new BigDecimal("42.50")
+        ));
+        verify(paymentRepository, times(2)).save(payment);
     }
 
     @Test
@@ -186,6 +218,8 @@ class PaymentServiceTest {
         UUID customerId = UUID.randomUUID();
         when(paymentRepository.findByOrderId(orderId)).thenReturn(Optional.empty());
         when(paymentRepository.save(any(Payment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(customerContactClient.paymentPhoneNumber(customerId)).thenReturn("+263771000000");
+        when(mobileMoneyProvider.initiateCharge(any(MobileMoneyChargeRequest.class))).thenReturn("SIM-default");
         PaymentService paymentService = paymentService();
 
         Payment payment = paymentService.initiatePaymentForOrder(orderId, customerId, new BigDecimal("42.50"));
@@ -193,7 +227,7 @@ class PaymentServiceTest {
         assertThat(payment.getOrderId()).isEqualTo(orderId);
         assertThat(payment.getCustomerId()).isEqualTo(customerId);
         assertThat(payment.getAmount()).isEqualByComparingTo("42.50");
-        verify(paymentRepository).save(any(Payment.class));
+        verify(paymentRepository, times(2)).save(any(Payment.class));
     }
 
     @Test
@@ -209,6 +243,12 @@ class PaymentServiceTest {
         verify(paymentRepository, never()).save(any(Payment.class));
     }
     private PaymentService paymentService() {
-        return new PaymentService(paymentRepository, paymentOutboxEventRepository, new ObjectMapper());
+        return new PaymentService(
+                paymentRepository,
+                paymentOutboxEventRepository,
+                new ObjectMapper(),
+                customerContactClient,
+                mobileMoneyProvider
+        );
     }
 }

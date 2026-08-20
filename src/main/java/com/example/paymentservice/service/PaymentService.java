@@ -7,6 +7,9 @@ import com.example.paymentservice.event.PaymentStatusChangedEvent;
 import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.outbox.PaymentOutboxEvent;
 import com.example.paymentservice.outbox.PaymentOutboxEventRepository;
+import com.example.paymentservice.client.CustomerContactClient;
+import com.example.paymentservice.provider.MobileMoneyChargeRequest;
+import com.example.paymentservice.provider.MobileMoneyProvider;
 import com.example.paymentservice.repository.PaymentRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,15 +27,21 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final PaymentOutboxEventRepository paymentOutboxEventRepository;
     private final ObjectMapper objectMapper;
+    private final CustomerContactClient customerContactClient;
+    private final MobileMoneyProvider mobileMoneyProvider;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             PaymentOutboxEventRepository paymentOutboxEventRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            CustomerContactClient customerContactClient,
+            MobileMoneyProvider mobileMoneyProvider
     ) {
         this.paymentRepository = paymentRepository;
         this.paymentOutboxEventRepository = paymentOutboxEventRepository;
         this.objectMapper = objectMapper;
+        this.customerContactClient = customerContactClient;
+        this.mobileMoneyProvider = mobileMoneyProvider;
     }
 
     public Payment initiatePayment(UUID orderId, UUID customerId, BigDecimal amount) {
@@ -41,8 +50,18 @@ public class PaymentService {
 
     @Transactional
     public Payment initiatePaymentForOrder(UUID orderId, UUID customerId, BigDecimal amount) {
-        return paymentRepository.findByOrderId(orderId)
-                .orElseGet(() -> paymentRepository.save(new Payment(orderId, customerId, amount)));
+        var existingPayment = paymentRepository.findByOrderId(orderId);
+        if (existingPayment.isPresent()) {
+            return existingPayment.get();
+        }
+
+        Payment payment = paymentRepository.save(new Payment(orderId, customerId, amount));
+        String phoneNumber = customerContactClient.paymentPhoneNumber(customerId);
+        String providerReference = mobileMoneyProvider.initiateCharge(
+                new MobileMoneyChargeRequest(orderId, customerId, phoneNumber, amount)
+        );
+        payment.assignProviderReference(providerReference);
+        return paymentRepository.save(payment);
     }
 
     public Payment getPayment(UUID paymentId) {

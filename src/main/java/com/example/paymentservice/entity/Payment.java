@@ -16,6 +16,8 @@ public class Payment {
     @Column(nullable = false) private BigDecimal amount;
     @Enumerated(EnumType.STRING) @Column(nullable = false)
     private PaymentStatus status = PaymentStatus.PENDING;
+    @Column(name = "provider_reference", unique = true)
+    private String providerReference;
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -39,11 +41,21 @@ public class Payment {
         }
         status = target;
     }
+    public void assignProviderReference(String providerReference) {
+        if (providerReference == null || providerReference.isBlank()) {
+            throw new IllegalArgumentException("Provider reference must not be blank");
+        }
+        if (this.providerReference != null && !this.providerReference.equals(providerReference)) {
+            throw new IllegalStateException("Provider reference is already assigned");
+        }
+        this.providerReference = providerReference;
+    }
     public PaymentStatus getStatus() { return status; }
     public UUID getId() { return id; }
     public UUID getOrderId() { return orderId; }
     public UUID getCustomerId() { return customerId; }
     public BigDecimal getAmount() { return amount; }
+    public String getProviderReference() { return providerReference; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public Long getVersion() { return version; }
