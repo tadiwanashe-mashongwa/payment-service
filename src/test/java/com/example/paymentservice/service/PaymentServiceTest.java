@@ -228,6 +228,36 @@ class PaymentServiceTest {
     }
 
     @Test
+    void shouldApplyFailedProviderCallbackAndPublishStatusChangedEvent() {
+        Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("42.50"));
+        payment.assignProviderReference("SIM-FAILED");
+        when(paymentRepository.findByProviderReference("SIM-FAILED")).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(payment)).thenReturn(payment);
+        PaymentService paymentService = paymentService();
+
+        Payment result = paymentService.handleProviderCallback("SIM-FAILED", PaymentStatus.FAILED);
+
+        assertThat(result.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        verify(paymentRepository).save(payment);
+        verify(paymentOutboxEventRepository).save(any(PaymentOutboxEvent.class));
+    }
+
+    @Test
+    void shouldIgnoreDuplicateProviderCallback() {
+        Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("42.50"));
+        payment.assignProviderReference("SIM-DUPLICATE");
+        payment.transitionTo(PaymentStatus.SUCCESS);
+        when(paymentRepository.findByProviderReference("SIM-DUPLICATE")).thenReturn(Optional.of(payment));
+        PaymentService paymentService = paymentService();
+
+        Payment result = paymentService.handleProviderCallback("SIM-DUPLICATE", PaymentStatus.SUCCESS);
+
+        assertThat(result.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        verify(paymentRepository, never()).save(any(Payment.class));
+        verifyNoInteractions(paymentOutboxEventRepository);
+    }
+
+    @Test
     void shouldInitiateOnlyOnePaymentForAnOrder() {
         UUID orderId = UUID.randomUUID();
         UUID customerId = UUID.randomUUID();
