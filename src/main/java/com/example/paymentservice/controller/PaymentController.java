@@ -3,8 +3,10 @@ package com.example.paymentservice.controller;
 import com.example.paymentservice.dto.CreatePaymentRequest;
 import com.example.paymentservice.dto.PaymentResponse;
 import com.example.paymentservice.dto.UpdatePaymentStatusRequest;
+import com.example.paymentservice.dto.ProviderPaymentCallbackRequest;
 import com.example.paymentservice.entity.Payment;
 import com.example.paymentservice.service.PaymentService;
+import com.example.paymentservice.service.PaymentCallbackAuthenticator;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,9 +31,11 @@ import java.util.UUID;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final PaymentCallbackAuthenticator paymentCallbackAuthenticator;
 
-    public PaymentController(PaymentService paymentService) {
+    public PaymentController(PaymentService paymentService, PaymentCallbackAuthenticator paymentCallbackAuthenticator) {
         this.paymentService = paymentService;
+        this.paymentCallbackAuthenticator = paymentCallbackAuthenticator;
     }
 
     @PostMapping
@@ -72,6 +76,15 @@ public class PaymentController {
             @Valid @RequestBody UpdatePaymentStatusRequest request
     ) {
         return PaymentResponse.from(paymentService.transitionPaymentStatus(paymentId, request.status()));
+    }
+
+    @PostMapping("/callbacks/provider")
+    public PaymentResponse handleProviderCallback(
+            @RequestBody @Valid ProviderPaymentCallbackRequest request,
+            @org.springframework.web.bind.annotation.RequestHeader("X-Payment-Callback-Secret") String callbackSecret
+    ) {
+        paymentCallbackAuthenticator.assertAuthorized(callbackSecret);
+        return PaymentResponse.from(paymentService.handleProviderCallback(request.providerReference(), request.status()));
     }
 
     private void ensureCustomerOwnsPayment(UUID customerId, Jwt jwt, Authentication authentication) {

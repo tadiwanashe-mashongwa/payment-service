@@ -76,7 +76,17 @@ public class PaymentService {
 
     @Transactional
     public Payment transitionPaymentStatus(UUID paymentId, PaymentStatus targetStatus) {
-        Payment payment = getPayment(paymentId);
+        return transitionPaymentStatus(getPayment(paymentId), targetStatus);
+    }
+
+    @Transactional
+    public Payment handleProviderCallback(String providerReference, PaymentStatus targetStatus) {
+        Payment payment = paymentRepository.findByProviderReference(providerReference)
+                .orElseThrow(() -> new IllegalArgumentException("Payment provider reference not found: " + providerReference));
+        return transitionPaymentStatus(payment, targetStatus);
+    }
+
+    private Payment transitionPaymentStatus(Payment payment, PaymentStatus targetStatus) {
         if (payment.getStatus() == targetStatus) {
             return payment;
         }

@@ -15,6 +15,7 @@ import java.util.Collection;
 import java.util.Map;
 
 import static org.springframework.http.HttpMethod.GET;
+import static org.springframework.http.HttpMethod.POST;
 
 @Configuration
 public class SecurityConfig {
@@ -33,6 +34,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers(API_DOCUMENTATION).permitAll()
+                        .requestMatchers(POST, "/api/payments/callbacks/provider").permitAll()
                         .requestMatchers("/api/payment-outbox/**").hasRole("ADMIN")
                         .requestMatchers(GET, "/api/payments/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/payments/**").hasRole("ADMIN")

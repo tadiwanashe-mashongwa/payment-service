@@ -5,6 +5,7 @@ import com.example.paymentservice.exception.PaymentNotFoundException;
 import com.example.paymentservice.exception.InvalidPaymentStatusTransitionException;
 import com.example.paymentservice.dto.PaymentResponse;
 import com.example.paymentservice.service.PaymentService;
+import com.example.paymentservice.service.PaymentCallbackAuthenticator;
 import com.example.paymentservice.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +47,9 @@ class PaymentControllerTest {
 
     @MockitoBean
     private PaymentService paymentService;
+
+    @MockitoBean
+    private PaymentCallbackAuthenticator paymentCallbackAuthenticator;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -218,5 +222,26 @@ class PaymentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"REFUNDED\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldAcceptAnAuthenticatedProviderCallback() throws Exception {
+        Payment payment = mock(Payment.class);
+        UUID paymentId = UUID.randomUUID();
+        when(payment.getId()).thenReturn(paymentId);
+        when(payment.getStatus()).thenReturn(com.example.paymentservice.entity.PaymentStatus.SUCCESS);
+        when(paymentService.handleProviderCallback("SIM-12345", com.example.paymentservice.entity.PaymentStatus.SUCCESS))
+                .thenReturn(payment);
+
+        mockMvc.perform(post("/api/payments/callbacks/provider")
+                        .header("X-Payment-Callback-Secret", "callback-secret")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"providerReference\":\"SIM-12345\",\"status\":\"SUCCESS\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(paymentId.toString()))
+                .andExpect(jsonPath("$.status").value("SUCCESS"));
+
+        verify(paymentCallbackAuthenticator).assertAuthorized("callback-secret");
+        verify(paymentService).handleProviderCallback("SIM-12345", com.example.paymentservice.entity.PaymentStatus.SUCCESS);
     }
 }

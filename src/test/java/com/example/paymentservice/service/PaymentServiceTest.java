@@ -213,6 +213,21 @@ class PaymentServiceTest {
     }
 
     @Test
+    void shouldApplySuccessfulProviderCallbackAndPublishStatusChangedEvent() {
+        Payment payment = new Payment(UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("42.50"));
+        payment.assignProviderReference("SIM-12345");
+        when(paymentRepository.findByProviderReference("SIM-12345")).thenReturn(Optional.of(payment));
+        when(paymentRepository.save(payment)).thenReturn(payment);
+        PaymentService paymentService = paymentService();
+
+        Payment result = paymentService.handleProviderCallback("SIM-12345", PaymentStatus.SUCCESS);
+
+        assertThat(result.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        verify(paymentRepository).save(payment);
+        verify(paymentOutboxEventRepository).save(any(PaymentOutboxEvent.class));
+    }
+
+    @Test
     void shouldInitiateOnlyOnePaymentForAnOrder() {
         UUID orderId = UUID.randomUUID();
         UUID customerId = UUID.randomUUID();
